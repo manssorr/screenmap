@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { captureProfiles, selectionOf, resolveProfile, readPanes } from './captureSelection'
+import { captureProfiles, selectionOf, resolveProfile, readPanes, captureAvailability } from './captureSelection'
 import { createNavigation } from './navigation'
 import { loadBundle, mergeBundles, sameApp, platformsOf, withPlatform, variantsOf, withVariant } from './loadBundle'
 
@@ -40,11 +40,13 @@ export function useBundles() {
   const setPlatform = useCallback((value) => navigation.change({ platform: value }), [navigation])
   const setVariant = useCallback((value) => navigation.change({ variant: value }), [navigation])
   const setScreen = useCallback((value, replace = false) => navigation.change({ screen: value, state: null }, { replace }), [navigation])
-  const visit = useCallback((value, captureState = null) => navigation.visit(value, captureState), [navigation])
+  const visit = useCallback((value, captureState = null, replace = false) => replace ? navigation.change({ screen: value, state: captureState }, { replace: true }) : navigation.visit(value, captureState), [navigation])
   const setState = useCallback((value) => navigation.visit(screen, value), [navigation, screen])
+  const gallerySpeed = ['2', '5', '10'].includes(location.speed) ? Number(location.speed) : 5
+  const setGallerySpeed = useCallback((value) => navigation.change({ speed: value }), [navigation])
   const setHighlights = useCallback((value) => { if (value) navigation.change({ highlights: value === 'hover' ? 'hover' : null }) }, [navigation])
   const back = useCallback((fallbackTo, scope) => navigation.back(fallbackTo, scope), [navigation])
-  useEffect(() => { const modeParam = new URLSearchParams(window.location.search).get('mode'); if (modeParam && !['map', 'changes', 'prototype'].includes(modeParam)) navigation.change({ mode: 'map' }, { replace: true }) }, [navigation])
+  useEffect(() => { const modeParam = new URLSearchParams(window.location.search).get('mode'); if (modeParam && !['map', 'changes', 'prototype', 'gallery'].includes(modeParam)) navigation.change({ mode: 'map' }, { replace: true }) }, [navigation])
 
   const place = useCallback((loaded) => {
     navigation.reset()
@@ -185,6 +187,8 @@ export function useBundles() {
   const setCaptureAxis = useCallback((key, value) => {
     navigation.change(Object.fromEntries(Object.entries({ ...selection, [key]: value }).map(([name, item]) => [name, item || '$unspecified'])))
   }, [navigation, selection])
+  const setCaptureSelection = useCallback((value) => navigation.change(Object.fromEntries(Object.entries(value).map(([key, item]) => [key, item || '$unspecified']))), [navigation])
+  const availability = useMemo(() => (plain ?? changes) ? captureAvailability(plain ?? changes, profiles, screen, state) : [], [plain, changes, profiles, screen, state])
   const comparing = location.compare === '1'
   const savedPanes = useMemo(() => readPanes(location.panes), [location.panes])
   const panes = useMemo(() => savedPanes.length >= 2 ? savedPanes : [selection, selectionOf(profiles.find((p) => p.id !== selectedProfile?.id) ?? profiles[0])], [savedPanes, selection, profiles, selectedProfile])
@@ -220,7 +224,7 @@ export function useBundles() {
 
   return {
     plain, changes, bundle, mode, setMode,
-    sourceBundle: plain ?? bundle, profiles, selection, setCaptureAxis, comparing, setComparing, panes, setPanes,
+    sourceBundle: plain ?? bundle, gallerySpeed, setGallerySpeed, profiles, selection, setCaptureAxis, setCaptureSelection, availability, comparing, setComparing, panes, setPanes,
     hasChanges: !!changes, overlaid,
     platforms, platform: activePlatform, setPlatform,
     variants, variant: activeVariant, setVariant, screen, setScreen, state, setState, highlights, setHighlights, canBack, canClose, visit, back,
